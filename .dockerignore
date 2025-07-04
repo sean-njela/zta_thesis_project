@@ -1,0 +1,21 @@
+# Git
+.git
+.gitignore
+
+# VS Code
+.vscode/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Devbox
+.devbox/
+devbox.json
+devbox.lock
+
+# Other
+README.md
