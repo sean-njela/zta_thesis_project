@@ -19,3 +19,7 @@ devbox.lock
 
 # Other
 README.md
+*.db
+*.sqlite3
+.env
+*.log

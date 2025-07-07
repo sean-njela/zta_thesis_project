@@ -1,0 +1,40 @@
+services:
+  app1:
+    build:
+      context: ../                # ✅ Correct project root
+      dockerfile: docker/Dockerfile
+    image: zta_demo_app1:dev
+    volumes:
+      - ../src:/usr/src/app       # ✅ Correct live-reload path
+    env_file:
+      - ../.env
+    environment:
+      - FLASK_ENV=development
+      - HOSTNAME=app1
+    ports:
+      - "5001:5000"
+
+  app2:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+    image: zta_demo_app2:dev
+    volumes:
+      - ../src:/usr/src/app
+    env_file:
+      - ../.env
+    environment:
+      - FLASK_ENV=development
+      - HOSTNAME=app2
+    ports:
+      - "5002:5000"
+
+  proxy:
+    image: nginx:stable-alpine
+    volumes:
+      - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - app1
+      - app2

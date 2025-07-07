@@ -1,0 +1,75 @@
+version: '3'
+
+# ⬇️ 1. Load variables from a .env file
+dotenv: ['.env']
+
+# ⬇️ 2. Assign the loaded environment variables to Task variables
+vars:
+  IMAGE_NAME: '{{.IMAGE_NAME}}'
+  VERSION: '{{.VERSION}}'
+  PLATFORMS: '{{.PLATFORMS}}'
+  DOCKERFILE: '{{.DOCKERFILE}}'
+  CONTEXT: '{{.CONTEXT}}'
+  BUILDER_NAME: '{{.BUILDER_NAME}}'
+  COMPOSE_FILE: '{{.COMPOSE_FILE}}'
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  # --------------------------
+  # Docker Buildx Tasks
+  # --------------------------
+  setup:
+    desc: Create and bootstrap Buildx builder
+    cmds:
+      - docker buildx create --name {{.BUILDER_NAME}} --use || true
+      - docker buildx inspect {{.BUILDER_NAME}} --bootstrap
+
+  build:
+    desc: Build multi-platform Docker image (no push)
+    deps: [setup]
+    cmds:
+      - docker buildx build --platform {{.PLATFORMS}} --file {{.DOCKERFILE}} --tag {{.IMAGE_NAME}}:{{.VERSION}} --tag {{.IMAGE_NAME}}:latest . --output type=docker
+
+  push:
+    desc: Build and push multi-platform image to registry
+    deps: [setup]
+    cmds:
+      - docker buildx build --platform {{.PLATFORMS}} --file {{.DOCKERFILE}} --tag {{.IMAGE_NAME}}:{{.VERSION}} --tag {{.IMAGE_NAME}}:latest . --push
+
+  clean:
+    desc: Remove buildx builder
+    cmds:
+      - docker buildx rm {{.BUILDER_NAME}} || true
+
+  # --------------------------
+  # Docker Compose Tasks
+  # --------------------------
+  compose-up:
+    desc: Start local dev stack with Docker Compose
+    cmds:
+      - docker-compose -f {{.COMPOSE_FILE}} up -d
+
+  compose-build:
+    desc: Build services using Docker Compose
+    cmds:
+      - docker-compose -f {{.COMPOSE_FILE}} build --no-cache
+
+  compose-down:
+    desc: Stop and remove Docker Compose containers, networks, volumes
+    cmds:
+      - docker-compose -f {{.COMPOSE_FILE}} down
+
+  compose-logs:
+    desc: Tail logs from all Compose services
+    cmds:
+      - docker-compose -f {{.COMPOSE_FILE}} logs -f
+
+  dev:
+    desc: Build and run dev stack
+    cmds:
+      - task: compose-build
+      - task: compose-up
