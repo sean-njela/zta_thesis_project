@@ -40,7 +40,6 @@ tasks:
 
         echo "✅ Git Flow setup completed."
     preconditions:
-      - sh: "git config --remove-section gitflow || { git config --remove-section gitflow.branch && git config --remove-section gitflow.prefix; }"
       - sh: "[ -d .git ]"
         msg: "❌ Not a Git repository. Run 'git init' first."
       - sh: "! git config --get gitflow.branch.master >/dev/null 2>&1"
