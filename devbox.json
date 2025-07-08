@@ -4,7 +4,8 @@
     "python@3.12",
     "python312Packages.flask@3.1",
     "httpie@3.2",
-    "go-task@3.44"
+    "go-task@3.44",
+    "gitflow@1.12"
   ],
   "shell": {
     "init_hook": [
