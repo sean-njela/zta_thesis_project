@@ -1,0 +1,143 @@
+version: '3'
+
+# ⬇️ 1. Load variables from a .env file
+dotenv: ['.env']
+
+# ⬇️ 2. Assign the loaded environment variables to Task variables
+vars:
+  IMAGE_NAME: '{{.IMAGE_NAME}}'
+  IMAGE_TAG: '{{.IMAGE_TAG | default "$(git rev-parse --short HEAD)"}}'
+  VERSION: '{{.VERSION}}'
+  PLATFORMS: '{{.PLATFORMS}}'
+  DOCKERFILE: '{{.DOCKERFILE}}'
+  CONTEXT: '{{.CONTEXT}}'
+  BUILDER_NAME: '{{.BUILDER_NAME}}'
+  COMPOSE_FILE: '{{.COMPOSE_FILE}}'
+tasks:
+
+# ─────────────────────────── Linting ───────────────────────────────
+  lint-yaml:
+    desc: "Lint YAML files (yamllint)"
+    cmds:
+      - yamllint -c .yamllint.yml .
+
+  lint-helm:
+    desc: "Lint Helm charts"
+    cmds:
+      - helm lint ./k8s/charts/zta-demo-app
+
+  # --------------------------
+  # Helm Deployment Tasks
+  # --------------------------
+  helm-k3d-create:
+    desc: "Create a dedicated k3d cluster for Helm testing"
+    cmds:
+      - |
+        if ! k3d cluster list | grep -q "k3s-dev"; then
+          echo "Creating new k3d cluster 'k3s-dev'..."
+          chmod +x k8s/scripts/k3s-init.sh
+          ./k8s/scripts/k3s-init.sh
+        else
+          echo "Cluster 'k3s-dev' already exists, using existing cluster"
+        fi
+      - kubectl config use-context k3d-k3s-dev
+      - kubectl get nodes
+
+  helm-namespace-create:
+    desc: "Create a namespace for the Helm deployment"
+    cmds:
+      - kubectl create namespace zta-demo || echo "Namespace already exists"
+
+  setup:
+    desc: Create and bootstrap Buildx builder
+    cmds:
+      - docker buildx create --name {{.BUILDER_NAME}} --use || true
+      - docker buildx inspect {{.BUILDER_NAME}} --bootstrap
+
+  build-local:
+    desc: Build local Docker image (no push)
+    deps: [setup]
+    cmds:
+      - docker buildx build --platform linux/amd64 --file {{.DOCKERFILE}} --tag {{.IMAGE_NAME}}:{{.IMAGE_TAG}} --tag {{.IMAGE_NAME}}:latest . --load
+
+  build-push:
+    desc: Build multi-platform Docker image (push to registry)
+    deps: [setup]
+    cmds:
+      - docker buildx build --platform {{.PLATFORMS}} --file {{.DOCKERFILE}} --tag {{.IMAGE_NAME}}:{{.IMAGE_TAG}} --tag {{.IMAGE_NAME}}:latest . --push
+
+
+  _helm-deploy:
+    internal: true
+    cmds:
+      - |
+        echo "Deploying Helm chart for {{.RELEASE_NAME}}..."
+        helm upgrade --install {{.RELEASE_NAME}} \
+          ./k8s/charts/zta-demo-app \
+          -f ./k8s/dev/values-local.yaml \
+          --set image.tag={{.IMAGE_TAG}} \
+          --namespace zta-demo
+        
+        echo "Waiting for pods of {{.RELEASE_NAME}} to be ready..."
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance={{.RELEASE_NAME}} --timeout=60s --namespace zta-demo || true
+
+  helm-deploy-all-local:
+    desc: "Deploy both app1 and app2 to local k3d cluster"
+    deps: [helm-k3d-create, helm-namespace-create]
+    vars:
+      IMAGE_TAG: '{{.IMAGE_TAG}}'
+    cmds:
+      - |
+        echo "Building local Docker image with tag {{.IMAGE_TAG}}..."
+        task --taskfile Taskfile.helm.yml build-local IMAGE_TAG={{.IMAGE_TAG}}
+        
+        echo "Importing image to k3d cluster..."
+        k3d image import {{.IMAGE_NAME}}:{{.IMAGE_TAG}} -c k3s-dev
+      - task: _helm-deploy
+        vars:
+          RELEASE_NAME: app1
+          IMAGE_TAG: '{{.IMAGE_TAG}}'
+      - task: _helm-deploy
+        vars:
+          RELEASE_NAME: app2
+          IMAGE_TAG: '{{.IMAGE_TAG}}'
+      - |
+        echo "Deployment status for all apps:"
+        kubectl get all -n zta-demo
+
+  helm-port-forward-app1:
+    desc: "Forward local port 8081 to access app1"
+    cmds:
+      - |
+        echo "Forwarding port 8081 -> 80 for app1 service"
+        echo "Access app1 at http://localhost:8081"
+        echo "Press Ctrl+C to stop port forwarding"
+        kubectl port-forward svc/app1 8081:80 -n zta-demo
+
+  helm-port-forward-app2:
+    desc: "Forward local port 8082 to access app2"
+    cmds:
+      - |
+        echo "Forwarding port 8082 -> 80 for app2 service"
+        echo "Access app2 at http://localhost:8082"
+        echo "Press Ctrl+C to stop port forwarding"
+        kubectl port-forward svc/app2 8082:80 -n zta-demo
+
+  expose-kubeconfig:
+    desc: "Expose k3d cluster kubeconfig"
+    cmds:
+      - cat ~/.kube/config > config-k3d-dev.txt 
+      - echo "Copy config-k3d-dev.txt into lens to view your cluster"
+
+  helm-uninstall-local:
+    desc: "Uninstall both app1 and app2 from local k3d cluster"
+    cmds:
+      - helm uninstall app1 --namespace zta-demo || true
+      - helm uninstall app2 --namespace zta-demo || true
+
+  helm-cleanup-all:
+    desc: "Complete cleanup - uninstall app, delete namespace and k3d cluster"
+    cmds:
+      - helm uninstall zta-app --namespace zta-demo || echo "No release to uninstall"
+      - kubectl delete namespace zta-demo || echo "No namespace to delete"
+      - k3d cluster delete k3s-dev || echo "No cluster to delete"
