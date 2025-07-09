@@ -76,16 +76,18 @@ tasks:
       - git push --set-upstream origin $(git rev-parse --abbrev-ref HEAD)
 
   feature:clean:
-    desc: "🧹 Delete local feature branch after PR merge -> task feature:clean name=login-form"
+    desc: "🧹 Delete the current local feature branch after PR merge"
     cmds:
       - |
-        name=$(echo "{{.name}}" | tr '[:upper:]' '[:lower:]')
-        git checkout {{.DEV_BRANCH}}
-        git pull origin {{.DEV_BRANCH}}
-        git branch -D "feature/$name" || echo "⚠️ feature/$name doesn't exist"
-    requires:
-      vars: 
-        - name
+        CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+        if [[ "$CURRENT_BRANCH" != feature/* ]]; then
+          echo "❌ Not on a feature branch. Aborting."
+          exit 1
+        fi
+        echo "Cleaning up feature branch: $CURRENT_BRANCH"
+        git checkout develop
+        git pull origin develop
+        git branch -D "$CURRENT_BRANCH" || echo "⚠️  Branch '$CURRENT_BRANCH' could not be deleted."
 
   release:start:
     desc: "🚀 Start a new release from develop -> task release:start version=1.2.0"
