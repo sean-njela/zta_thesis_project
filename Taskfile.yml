@@ -24,8 +24,8 @@ tasks:
   k3s:init:
     desc: "Create local k3d cluster (k3s-dev)"
     cmds:
-      - chmod +x scripts/k3s-init.sh
-      - ./scripts/k3s-init.sh
+      - chmod +x k8s/scripts/k3s-init.sh
+      - ./k8s/scripts/k3s-init.sh
 
   dev:up:
     desc: "Start live-reload dev loop with Tilt"

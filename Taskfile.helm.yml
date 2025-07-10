@@ -31,6 +31,7 @@ tasks:
   # --------------------------
   helm-k3d-create:
     desc: "Create a dedicated k3d cluster for Helm testing"
+    deps: [helm-namespace-create]
     cmds:
       - |
         if ! k3d cluster list | grep -q "k3s-dev"; then
@@ -83,7 +84,7 @@ tasks:
 
   helm-deploy-all-local:
     desc: "Deploy both app1 and app2 to local k3d cluster"
-    deps: [helm-k3d-create, helm-namespace-create]
+    deps: [helm-k3d-create]
     vars:
       IMAGE_TAG: '{{.IMAGE_TAG}}'
     cmds:

@@ -88,6 +88,7 @@ tasks:
         git checkout develop
         git pull origin develop
         git branch -D "$CURRENT_BRANCH" || echo "⚠️  Branch '$CURRENT_BRANCH' could not be deleted."
+        git fetch origin --prune
 
   release:start:
     desc: "🚀 Start a new release from develop -> task release:start version=1.2.0"
