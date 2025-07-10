@@ -218,6 +218,7 @@ tasks:
     requires:
       vars:
         - version
+        - name
 
   clean:branches:
     desc: "🧼 Delete all local feature, release, hotfix branches (after merge)"
