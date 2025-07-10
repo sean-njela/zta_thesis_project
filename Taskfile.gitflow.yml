@@ -186,39 +186,30 @@ tasks:
 
 
   hotfix:start:
-    desc: "🔥 Start a hotfix from main -> task hotfix:start name=fix-login-crash"
+    desc: "🔥 Start a hotfix from main -> task hotfix:start version=1.2.1"
     cmds:
       - |
-        name=$(echo "{{.name}}" | tr '[:upper:]' '[:lower:]')
+        version=$(echo "{{.version}}" | tr '[:upper:]' '[:lower:]')
         git checkout {{.MAIN_BRANCH}}
         git pull origin {{.MAIN_BRANCH}} || (echo "❌ Pull failed. Resolve diverged main." && exit 1)
-        git flow hotfix start "$name"
+        git flow hotfix start "$version"
     requires:
       vars:
-        - name
+        - version
 
   hotfix:finish:
-    desc: "🏁 Finish hotfix, tag and merge -> task hotfix:finish version=1.2.1 [or name=update-readme]"
+    desc: "🏁 Finish hotfix, tag and merge -> task hotfix:finish version=1.2.1"
     cmds:
       - |
-        if [ -n "{{.name}}" ]; then
-          # If name is provided, use it to finish the hotfix
-          name=$(echo "{{.name}}" | tr '[:upper:]' '[:lower:]')
-          echo "🏁 Finishing hotfix '$name'..."
-          git flow hotfix finish -m "Hotfix $name" "$name"
-        else
-          # Otherwise use version
-          version=$(echo "{{.version}}" | tr '[:upper:]' '[:lower:]')
-          echo "🏁 Finishing hotfix v$version..."
-          git flow hotfix finish -m "Hotfix v$version" "$version"
-        fi
+        version=$(echo "{{.version}}" | tr '[:upper:]' '[:lower:]')
+        echo "🏁 Finishing hotfix v$version..."
+        git flow hotfix finish -m "Hotfix v$version" "$version"
         git push origin {{.MAIN_BRANCH}}
         git push origin {{.DEV_BRANCH}}
         git push --tags
     requires:
       vars:
         - version
-        - name
 
   clean:branches:
     desc: "🧼 Delete all local feature, release, hotfix branches (after merge)"
