@@ -31,3 +31,9 @@ pdb:
 
 podSecurityContext:
   runAsNonRoot: false             # allow running as root for local dev
+
+observability:
+  enabled: true
+  env:
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://observability-stack-opentelemetry-collector.observability:4318"
+    OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"

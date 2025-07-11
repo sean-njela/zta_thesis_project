@@ -19,10 +19,10 @@ WORKDIR /usr/src/app
 # Copy entrypoint script and give it execute permission
 # Keeping scripts outside app source avoids cluttering the runtime
 # ------------------------------------------------------------------
-COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh && \
-    ls -la /entrypoint.sh && \
-    head -n 5 /entrypoint.sh
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh && \
+    ls -la /usr/local/bin/entrypoint.sh && \
+    head -n 5 /usr/local/bin/entrypoint.sh
 
 # ------------------------------------------------------------------
 # Install system dependencies and Python deps
@@ -62,7 +62,7 @@ EXPOSE 5000
 # Set entrypoint
 # This script handles wait-for-it, migrations, etc.
 # ------------------------------------------------------------------
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 # ------------------------------------------------------------------
 # Default command (can be overridden in docker-compose)
