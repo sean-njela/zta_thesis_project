@@ -1,4 +1,71 @@
 services:
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    volumes:
+      - ../prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  loki:
+    image: grafana/loki:3.0.0
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ../loki/loki-config.yaml:/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+
+  tempo:
+    image: grafana/tempo:2.4.1
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ../tempo/tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200:3200" # Tempo UI
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.104.0
+    volumes:
+      - ../otel/otel-collector-config.yaml:/etc/otel-collector/config.yaml
+    command:
+      - --config=/etc/otel-collector/config.yaml
+    ports:
+      # These ports are not strictly necessary to expose to the host,
+      # but can be useful for direct debugging.
+      - "14317:4317" # OTLP gRPC
+      - "14318:4318" # OTLP HTTP
+
+    depends_on:
+      - loki
+      - tempo
+
+  fluent-bit:
+    image: fluent/fluent-bit:3.0
+    volumes:
+      - ../fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+      - "2020:2020"
+
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ../grafana/provisioning:/etc/grafana/provisioning
+      - ../grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+  
   app1:
     build:
       context: ../                # ✅ Correct project root
@@ -13,6 +80,16 @@ services:
       - HOSTNAME=app1
     ports:
       - "5001:5000"
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: fluent-bit:24224
+        tag: python.app1
+        fluentd-async: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+    depends_on:
+      - otel-collector
 
   app2:
     build:
@@ -28,6 +105,16 @@ services:
       - HOSTNAME=app2
     ports:
       - "5002:5000"
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: fluent-bit:24224
+        tag: python.app2
+        fluentd-async: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+    depends_on:
+      - otel-collector
 
   proxy:
     image: nginx:stable-alpine
