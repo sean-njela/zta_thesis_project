@@ -30,6 +30,15 @@ spec:
             - name: http
               containerPort: {{ .Values.service.targetPort }}
               protocol: TCP
+          {{- if .Values.observability.enabled }}
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Release.Name }}
+            {{- range $key, $value := .Values.observability.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- end }}
           {{- if .Values.externalSecret.enabled }}
           envFrom:
             - secretRef:

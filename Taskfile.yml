@@ -7,13 +7,12 @@ dotenv: ['.env']
 vars:
   IMAGE_NAME: '{{.IMAGE_NAME}}'
   IMAGE_TAG: '{{.IMAGE_TAG | default "$(git rev-parse --short HEAD)"}}'
-  VERSION: '{{.VERSION}}'
   PLATFORMS: '{{.PLATFORMS}}'
   DOCKERFILE: '{{.DOCKERFILE}}'
   CONTEXT: '{{.CONTEXT}}'
   BUILDER_NAME: '{{.BUILDER_NAME}}'
   COMPOSE_FILE: '{{.COMPOSE_FILE}}'
-
+  ENV: '{{.ENV}}'
 tasks:
   default:
     desc: Show available tasks
@@ -52,18 +51,18 @@ tasks:
     desc: Build multi-platform Docker image (no push)
     deps: [setup]
     cmds:
-      - docker buildx build --platform {{.PLATFORMS}} --file {{.DOCKERFILE}} --tag {{.IMAGE_NAME}}:{{.VERSION}} --tag {{.IMAGE_NAME}}:latest . --output type=docker
+      - docker buildx build --platform {{.PLATFORMS}} --file {{.DOCKERFILE}} --tag {{.IMAGE_NAME}}:{{.ENV}} . --output type=docker
 
   scan:trivy:
     desc: "CVE scan the built image"
     cmds:
-      - trivy image --severity CRITICAL,HIGH {{.IMAGE_NAME}}:{{.VERSION}}
+      - trivy image --severity CRITICAL,HIGH {{.IMAGE_NAME}}:{{.ENV}}
 
   push:
     desc: Build and push multi-platform image to registry
     deps: [setup]
     cmds:
-      - docker buildx build --platform {{.PLATFORMS}} --file {{.DOCKERFILE}} --tag {{.IMAGE_NAME}}:{{.VERSION}} --tag {{.IMAGE_NAME}}:latest . --push
+      - docker buildx build --platform {{.PLATFORMS}} --file {{.DOCKERFILE}} --tag {{.IMAGE_NAME}}:{{.IMAGE_TAG}} --tag {{.IMAGE_NAME}}:{{.ENV}} . --push
 
   clean:
     desc: Remove buildx builder
