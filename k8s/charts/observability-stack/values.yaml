@@ -1,0 +1,304 @@
+# Global settings
+global:
+  # Cluster domain for service discovery
+  clusterDomain: cluster.local
+
+# Grafana Configuration
+grafana:
+  enabled: true
+  # Admin credentials
+  adminUser: admin
+  adminPassword: admin123  # Change in production
+  
+  # Service configuration
+  service:
+    type: NodePort
+    nodePort: 30300
+  
+  # Persistence
+  persistence:
+    enabled: true
+    size: 1Gi
+  
+  # Data sources configuration
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        # Prometheus data source
+        - name: Prometheus
+          type: prometheus
+          url: http://observability-stack-kube-prometheus-prometheus:9090
+          access: proxy
+          isDefault: false
+        
+        # Loki data source
+        - name: Loki
+          type: loki
+          url: http://observability-stack-loki-gateway
+          access: proxy
+          isDefault: false
+        
+        # Tempo data source
+        - name: Tempo
+          type: tempo
+          url: http://observability-stack-tempo:3100
+          access: proxy
+          isDefault: false
+
+  # Dashboard providers configuration
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  # Dashboards configuration
+  dashboards:
+    default:
+      # Node Exporter Full dashboard
+      node-exporter:
+        # grafana.com dashboard id: 1860
+        gnetId: 1860
+        revision: 31 # A recent revision
+        datasource:
+          - name: DS_PROMETHEUS
+            value: Prometheus
+      # Logging Dashboard via Loki v2
+      loki-logs:
+        gnetId: 18042
+        revision: 1
+        datasource: Loki
+
+      # Tempo Data Exploration (from official mixin)
+      tempo-data-exploration:
+        gnetId: 16275
+        revision: 1
+        datasource: Tempo
+
+      # Tempo Operational Dashboard (from official mixin)
+      tempo-operational:
+        gnetId: 16276
+        revision: 1
+        datasource: Prometheus
+
+# Loki Configuration
+loki:
+  enabled: true
+  deploymentMode: SingleBinary
+  
+  # Single binary configuration
+  singleBinary:
+    replicas: 1
+    persistence:
+      enabled: true
+      size: 2Gi
+  
+  # Gateway configuration
+  gateway:
+    enabled: true
+    replicas: 1
+    service:
+      type: ClusterIP
+      port: 80
+  
+  # Loki configuration
+  loki:
+    # Use newer schema version
+    schemaConfig:
+      configs:
+        - from: 2024-04-01
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+    
+    # Storage configuration
+    storage:
+      type: filesystem
+      filesystem:
+        chunks_directory: /var/loki/chunks
+        rules_directory: /var/loki/rules
+    
+    # Limits configuration
+    limits_config:
+      # Allow structured metadata for OTLP ingestion
+      allow_structured_metadata: true
+      retention_period: 168h  # 7 days
+      
+    # Compactor configuration
+    compactor:
+      working_directory: /var/loki/compactor
+      retention_enabled: true
+
+# Prometheus Configuration (kube-prometheus-stack)
+kube-prometheus-stack:
+  enabled: true
+  # Disable components we don't need
+  alertmanager:
+    enabled: false
+  
+  grafana:
+    enabled: false  # We use our own Grafana instance
+  
+  # Prometheus configuration
+  prometheus:
+    enabled: true
+    service:
+      type: ClusterIP
+      port: 9090
+    
+    prometheusSpec:
+      # Storage
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 2Gi
+      
+      # Retention
+      retention: 7d
+      
+      # Additional scrape configs for our apps
+      additionalScrapeConfigs:
+        - job_name: 'zta-demo-apps'
+          kubernetes_sd_configs:
+            - role: pod
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_label_app]
+              action: keep
+              regex: zta-demo-app
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+              action: keep
+              regex: true
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+              regex: (.+)
+            - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+              action: replace
+              regex: ([^:]+)(?::\d+)?;(\d+)
+              replacement: $1:$2
+              target_label: __address__
+
+# Tempo Configuration
+tempo:
+  enabled: true
+  # Use simple deployment mode
+  tempo:
+    repository: grafana/tempo
+    tag: 2.3.1
+    
+    # Storage configuration
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /var/tempo/traces
+    
+    # Receivers configuration
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 3100
+  
+  # Persistence
+  persistence:
+    enabled: true
+    size: 2Gi
+
+# OpenTelemetry Collector Configuration
+opentelemetry-collector:
+  enabled: true
+  mode: deployment
+  
+  # Collector configuration
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    
+    processors:
+      batch: {}
+      memory_limiter:
+        limit_mib: 512
+        check_interval: 1s
+    
+    exporters:
+      # Export metrics to Prometheus
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+        send_timestamps: true
+        metric_expiration: 180m
+      
+      # Export traces to Tempo
+      otlp/tempo:
+        endpoint: "http://observability-stack-tempo:4317"
+        tls:
+          insecure: true
+      
+      # Export logs to Loki
+      loki:
+        endpoint: "http://observability-stack-loki-gateway/loki/api/v1/push"
+    
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp/tempo]
+        
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [prometheus]
+        
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [loki]
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+  
+  # Ports configuration
+  ports:
+    otlp:
+      enabled: true
+      containerPort: 4317
+      servicePort: 4317
+      protocol: TCP
+    otlp-http:
+      enabled: true
+      containerPort: 4318
+      servicePort: 4318
+      protocol: TCP
+    metrics:
+      enabled: true
+      containerPort: 8888
+      servicePort: 8888
+      protocol: TCP

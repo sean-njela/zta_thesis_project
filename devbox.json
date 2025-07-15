@@ -16,6 +16,8 @@
     "yamllint@1.37",
     "alsa-lib@1.2",
     "kubernetes-helm@3.18",
+    "kubectx@0.9",
+    "poetry@2.1",
     "k9s@0.50"
   ],
   "shell": {
