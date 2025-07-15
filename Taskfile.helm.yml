@@ -219,14 +219,10 @@ tasks:
         kubectl get pods -n zta-demo
         kubectl get pods -n observability
 
-  cleanup-ns:
-    desc: "Cleanup namespaces and kind cluster"
+  cleanup-cluster:
+    desc: "Cleanup kind cluster"
     cmds:
-      - kubens zta-demo
-      - kubectl delete namespace zta-demo || echo "No zta-demo namespace to delete"
-      - kubens observability
-      - kubectl delete namespace observability || echo "No observability namespace to delete"
-      - kind delete cluster thesis-demo || echo "No cluster to delete"
+      - kind delete cluster -n thesis-demo || echo "No cluster to delete"
 
   cleanup-helm:
     desc: "Cleanup helm releases"
@@ -238,5 +234,5 @@ tasks:
   cleanup-all:
     desc: "Cleanup all resources"
     cmds:
-      - task: cleanup-ns
+      - task: cleanup-cluster
       - task: cleanup-helm
