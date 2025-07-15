@@ -1,0 +1,33 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+exporters:
+  # For Metrics
+  prometheus:
+    endpoint: "0.0.0.0:8888"
+
+  # For Traces
+  # Corrected: Added an OTLP exporter to send traces to Tempo
+  otlp/tempo:
+    endpoint: "tempo:4317"
+    tls:
+      insecure: true
+
+  # For Debugging
+  logging:
+    loglevel: debug
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: []
+      exporters: [prometheus]
+    traces:
+      receivers: [otlp]
+      processors: []
+      # Corrected: Added the tempo exporter to the pipeline
+      exporters: [otlp/tempo, logging]
