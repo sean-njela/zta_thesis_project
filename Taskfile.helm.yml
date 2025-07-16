@@ -262,6 +262,7 @@ tasks:
       - helm uninstall app1 || echo "No app1 release to uninstall"
       - helm uninstall app2 || echo "No app2 release to uninstall"
       - helm uninstall observability-stack || echo "No observability release to uninstall"
+      - helm uninstall kiali-operator || echo "No kiali release to uninstall"
 
   cleanup-all:
     desc: "Cleanup all resources"
@@ -287,7 +288,7 @@ tasks:
       - kubectx kind-thesis-demo
       - kubens zta-demo
       #- kubectl delete -f https://raw.githubusercontent.com/istio/istio/1.17.11/manifests/istio-demo.yaml
-      #- kubectl label namespace zta-demo istio-injection=disabled
+      - kubectl label namespace zta-demo istio-injection=disabled
 
 
   # --------------------------
@@ -321,13 +322,6 @@ tasks:
       - kubectx kind-thesis-demo
       - kubens zta-demo
       - kubectl create token kiali-service-account
-
-  kiali-uninstall:
-    desc: "Uninstall Kiali from the cluster"
-    cmds:
-      - kubectx kind-thesis-demo
-      - kubens zta-demo
-      - helm uninstall kiali-operator
 
 
   # --------------------------
