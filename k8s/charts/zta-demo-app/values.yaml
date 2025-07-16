@@ -1,8 +1,8 @@
-replicaCount: 2
+replicaCount: 1
 
 image:
   repository: docker.io/devopssean/zta_demo_app
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   # -- Full image tag (e.g. "1.2.3" or Git SHA). CI replaces this via --set image.tag.
   tag: "{{.IMAGE_TAG}}"
   pullSecrets: []

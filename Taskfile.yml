@@ -53,7 +53,7 @@ tasks:
     cmds:
       - docker buildx build --platform {{.PLATFORMS}} --file {{.DOCKERFILE}} --tag {{.IMAGE_NAME}}:{{.ENV}} . --output type=docker
 
-  scan:trivy:
+  trivy:scan:
     desc: "CVE scan the built image"
     cmds:
       - trivy image --severity CRITICAL,HIGH {{.IMAGE_NAME}}:{{.ENV}}

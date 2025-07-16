@@ -27,9 +27,9 @@ tasks:
   create-cluster:
     desc: "Create a Kind cluster if it doesn't already exist"
     cmds:
-      - kind create cluster -n thesis-demo --image kindest/node:v1.33.1
+      - kind create cluster -n thesis-demo --image kindest/node:v1.33.1 || echo "Cluster already exists"
     status:
-      - kind get clusters | grep thesis-demo
+      - kind get clusters | grep kind-thesis-demo
 
   create-namespace:
     desc: "Create a namespace for the Helm deployment"
@@ -60,14 +60,14 @@ tasks:
     cmds:
       - |
         echo "Deploying Helm chart for {{.RELEASE_NAME}}..."
+        kubens zta-demo
         helm upgrade --install {{.RELEASE_NAME}} \
           ./k8s/charts/zta-demo-app \
           -f ./k8s/dev/values-local.yaml \
-          --set image.tag={{.ENV}} \
-          --namespace zta-demo
+          --set image.tag={{.ENV}}
         
         echo "Waiting for pods of {{.RELEASE_NAME}} to be ready..."
-        kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance={{.RELEASE_NAME}} --timeout=60s --namespace zta-demo || true
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance={{.RELEASE_NAME}} --timeout=60s || true
 
   deploy-all-local:
     desc: "Deploy both app1 and app2 to local cluster"
@@ -79,7 +79,7 @@ tasks:
       - task: build-local
         vars:
           ENV: '{{.ENV}}'
-
+      - kubectx kind-thesis-demo
       - echo "Importing image to kind cluster..."
       - kind load docker-image {{.IMAGE_NAME}}:{{.ENV}} -n thesis-demo
 
@@ -92,12 +92,30 @@ tasks:
           RELEASE_NAME: app2
           ENV: '{{.ENV}}'
       - |
+        kubens zta-demo
         echo "Deployment status for all apps:"
-        kubectl get all -n zta-demo
+        kubectl get all
+
+  upgrade-all:
+    desc: "Upgrades both helm charts when changes are made"
+    cmds:
+      - task: _deploy
+        vars:
+          RELEASE_NAME: app1
+          ENV: '{{.ENV}}'
+      - task: _deploy
+        vars:
+          RELEASE_NAME: app2
+          ENV: '{{.ENV}}'
+      - |
+        kubens zta-demo
+        echo "Upgrade status for all apps:"
+        kubectl get all
 
   port-forward-app1:
     desc: "Forward local port 8081 to access app1"
     cmds:
+      - kubectx kind-thesis-demo
       - kubens zta-demo
       - |
         echo "Forwarding port 8081 -> 80 for app1 service"
@@ -108,6 +126,7 @@ tasks:
   port-forward-app2:
     desc: "Forward local port 8082 to access app2"
     cmds:
+      - kubectx kind-thesis-demo
       - kubens zta-demo
       - |
         echo "Forwarding port 8082 -> 80 for app2 service"
@@ -124,8 +143,10 @@ tasks:
   uninstall-apps1&2:
     desc: "Uninstall both app1 and app2 from local cluster"
     cmds:
-      - helm uninstall app1 --namespace zta-demo || true
-      - helm uninstall app2 --namespace zta-demo || true
+      - kubectx kind-thesis-demo
+      - kubens zta-demo
+      - helm uninstall app1 || true
+      - helm uninstall app2 || true
 
   # --------------------------
   # Observability Stack Tasks
@@ -135,9 +156,11 @@ tasks:
     deps: [create-cluster]
     cmds:
       - |
+        kubectx kind-thesis-demo
         echo "Creating observability namespace..."
         kubectl create namespace observability || echo "Namespace already exists"
         
+        kubens observability
         echo "Adding Helm repositories..."
         helm repo add grafana https://grafana.github.io/helm-charts
         helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -149,17 +172,16 @@ tasks:
         
         echo "Deploying observability stack..."
         helm upgrade --install observability-stack ./k8s/charts/observability-stack \
-          --namespace observability \
-          --create-namespace \
           --wait \
           --timeout 10m
         
         echo "Observability stack deployment status:"
-        kubectl get pods -n observability
+        kubectl get pods
 
   observability-status:
     desc: "Check observability stack status"
     cmds:
+      - kubectx kind-thesis-demo
       - kubens observability
       - |
         echo "=== Observability Stack Status ==="
@@ -171,16 +193,19 @@ tasks:
   port-forward-grafana:
     desc: "Forward port 3000 to access Grafana dashboard"
     cmds:
+      - kubectx kind-thesis-demo
+      - kubens observability
       - |
         echo "Forwarding port 3000 -> 80 for Grafana service"
         echo "Access Grafana at http://localhost:3000"
         echo "Username: admin | Password: admin123"
         echo "Press Ctrl+C to stop port forwarding"
-        kubectl port-forward svc/observability-stack-grafana 3000:80 -n observability
+        kubectl port-forward svc/observability-stack-grafana 3000:80
 
   observability-logs:
     desc: "View logs from observability stack components"
     cmds:
+      - kubectx kind-thesis-demo
       - kubens observability
       - |
         echo "=== Grafana Logs ==="
@@ -195,13 +220,15 @@ tasks:
   observability-uninstall:
     desc: "Uninstall observability stack"
     cmds:
-      - helm uninstall observability-stack --namespace observability || echo "No release to uninstall"
+      - kubectx kind-thesis-demo
+      - kubens observability
+      - helm uninstall observability-stack || echo "No release to uninstall"
       - kubectl delete namespace observability || echo "No namespace to delete"
 
   # --------------------------
   # Combined Deployment Tasks
   # --------------------------
-  deploy-all:
+  dev:
     desc: "Deploy both applications and observability stack"
     deps: [create-cluster, create-namespace]
     cmds:
@@ -216,17 +243,22 @@ tasks:
         echo "• Grafana: kubectl port-forward svc/observability-stack-grafana 3000:80 -n observability"
         echo ""
         echo "=== Quick Status Check ==="
-        kubectl get pods -n zta-demo
-        kubectl get pods -n observability
+        kubectx kind-thesis-demo
+        kubens zta-demo
+        kubectl get pods 
+        kubens observability
+        kubectl get pods
 
   cleanup-cluster:
     desc: "Cleanup kind cluster"
     cmds:
+      - kubectx kind-thesis-demo
       - kind delete cluster -n thesis-demo || echo "No cluster to delete"
 
   cleanup-helm:
     desc: "Cleanup helm releases"
     cmds:
+      - kubectx kind-thesis-demo
       - helm uninstall app1 || echo "No app1 release to uninstall"
       - helm uninstall app2 || echo "No app2 release to uninstall"
       - helm uninstall observability-stack || echo "No observability release to uninstall"
@@ -236,3 +268,81 @@ tasks:
     cmds:
       - task: cleanup-cluster
       - task: cleanup-helm
+
+
+  # --------------------------
+  # Istio Tasks
+  # -------------------------
+  istio-install:
+    desc: "Deploy Istio to the cluster"
+    cmds:
+      - kubectx kind-thesis-demo
+      - kubens zta-demo
+      - kubectl label namespace zta-demo istio-injection=enabled
+      #- kubectl apply -f https://raw.githubusercontent.com/istio/istio/1.17.11/manifests/istio-demo.yaml
+
+  istio-uninstall:
+    desc: "Uninstall Istio from the cluster"
+    cmds:
+      - kubectx kind-thesis-demo
+      - kubens zta-demo
+      #- kubectl delete -f https://raw.githubusercontent.com/istio/istio/1.17.11/manifests/istio-demo.yaml
+      #- kubectl label namespace zta-demo istio-injection=disabled
+
+
+  # --------------------------
+  # Kiali Tasks
+  # -------------------------
+  kiali-install:
+    desc: "Deploy Kiali to the cluster"
+    cmds:
+      - kubectx kind-thesis-demo
+      - kubens zta-demo
+      - |
+        helm repo add kiali https://kiali.org/helm-charts
+        helm install \
+          --set cr.create=true \
+          --set cr.namespace=zta-demo \
+          --namespace kiali-operator \
+          --create-namespace \
+          kiali-operator \
+          kiali/kiali-operator
+
+  port-forward-kiali:
+    desc: "Port forward Kiali to the cluster"
+    cmds:
+      - kubectx kind-thesis-demo
+      - kubens zta-demo
+      - kubectl port-forward svc/kiali 20001:20001
+
+  generate-kiali-token:
+    desc: "Generate Kiali token"
+    cmds:
+      - kubectx kind-thesis-demo
+      - kubens zta-demo
+      - kubectl create token kiali-service-account
+
+  kiali-uninstall:
+    desc: "Uninstall Kiali from the cluster"
+    cmds:
+      - kubectx kind-thesis-demo
+      - kubens zta-demo
+      - helm uninstall kiali-operator
+
+
+  # --------------------------
+  # K8s Dashboard Tasks
+  # -------------------------
+  k8s-dashboard-install:
+    desc: "Deploy K8s Dashboard to the cluster"
+    cmds:
+      - kubectx kind-thesis-demo
+      - kubens zta-demo
+      #- kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.12.0/aio/deploy/recommended.yaml
+
+  k8s-dashboard-uninstall:
+    desc: "Uninstall K8s Dashboard from the cluster"
+    cmds:
+      - kubectx kind-thesis-demo
+      - kubens zta-demo
+      #- kubectl delete -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.12.0/aio/deploy/recommended.yaml
