@@ -5,13 +5,13 @@ dotenv: ['.env']
 
 # ⬇️ 2. Assign the loaded environment variables to Task variables
 vars:
-  IMAGE_NAME: '{{.IMAGE_NAME}}'
-  IMAGE_TAG: '{{.IMAGE_TAG | default "$(git rev-parse --short HEAD)"}}'
+  REPOSITORY: '{{.REPOSITORY}}'
+  TAG: '{{.TAG | default "$(git rev-parse --short HEAD)"}}'
   DOCKERFILE: '{{.DOCKERFILE}}'
   CONTEXT: '{{.CONTEXT}}'
   BUILDER_NAME: '{{.BUILDER_NAME}}'
   COMPOSE_FILE: '{{.COMPOSE_FILE}}'
-  ENV: '{{.ENV}}'
+  PLATFORMS: '{{.PLATFORMS}}'
 tasks:
 
 # ─────────────────────────── Linting ───────────────────────────────
@@ -36,7 +36,7 @@ tasks:
     cmds:
       - kubectl create namespace zta-demo || echo "Namespace already exists"
 
-  setup:
+  setup-buildx:
     desc: Create and bootstrap Buildx builder
     cmds:
       - docker buildx create --name {{.BUILDER_NAME}} --use || true
@@ -44,15 +44,15 @@ tasks:
 
   build-local:
     desc: Build local Docker image (no push)
-    deps: [setup]
+    deps: [setup-buildx]
     cmds:
-      - docker buildx build --platform linux/amd64 --file {{.DOCKERFILE}} --tag {{.IMAGE_NAME}}:{{.ENV}} . --load
+      - docker buildx build --platform {{.PLATFORMS}} --file {{.DOCKERFILE}} --tag {{.REPOSITORY}}:{{.TAG}} . --load
 
   build-push:
     desc: Build multi-platform Docker image (push to registry)
-    deps: [setup]
+    deps: [setup-buildx]
     cmds:
-      - docker buildx build --platform {{.PLATFORMS}} --file {{.DOCKERFILE}} --tag {{.IMAGE_NAME}}:{{.IMAGE_TAG}} --tag {{.IMAGE_NAME}}:{{.ENV}} . --push
+      - docker buildx build --platform {{.PLATFORMS}} --file {{.DOCKERFILE}} --tag {{.REPOSITORY}}:{{.TAG}} --tag {{.REPOSITORY}}:latest . --push
 
 
   _deploy:
@@ -64,75 +64,53 @@ tasks:
         helm upgrade --install {{.RELEASE_NAME}} \
           ./k8s/charts/zta-demo-app \
           -f ./k8s/dev/values-local.yaml \
-          --set image.tag={{.ENV}}
         
         echo "Waiting for pods of {{.RELEASE_NAME}} to be ready..."
         kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance={{.RELEASE_NAME}} --timeout=60s || true
 
   deploy-all-local:
-    desc: "Deploy both app1 and app2 to local cluster"
-    deps: [create-cluster]
+    desc: "Deploy the app helm chart to the local cluster"
+    deps: [create-cluster, create-namespace]
     vars:
-      ENV: '{{.ENV | default "dev"}}'
+      TAG: '{{.TAG | default "dev"}}'
     cmds:
-      - echo "Building local Docker image with tag {{.ENV}}..."
+      - echo "Building local Docker image with tag {{.TAG}}..."
       - task: build-local
         vars:
-          ENV: '{{.ENV}}'
+          TAG: '{{.TAG}}'
       - kubectx kind-thesis-demo
       - echo "Importing image to kind cluster..."
-      - kind load docker-image {{.IMAGE_NAME}}:{{.ENV}} -n thesis-demo
+      - kind load docker-image {{.REPOSITORY}}:{{.TAG}} -n thesis-demo
 
       - task: _deploy
         vars:
-          RELEASE_NAME: app1
-          ENV: '{{.ENV}}'
-      - task: _deploy
-        vars:
-          RELEASE_NAME: app2
-          ENV: '{{.ENV}}'
+          RELEASE_NAME: zta-demo-app
       - |
         kubens zta-demo
         echo "Deployment status for all apps:"
         kubectl get all
 
   upgrade-all:
-    desc: "Upgrades both helm charts when changes are made"
+    desc: "Upgrades the app helm chart when changes are made"
+    vars:
+      TAG: '{{.TAG | default "dev"}}'
     cmds:
-      - task: _deploy
-        vars:
-          RELEASE_NAME: app1
-          ENV: '{{.ENV}}'
-      - task: _deploy
-        vars:
-          RELEASE_NAME: app2
-          ENV: '{{.ENV}}'
+      - helm upgrade zta-demo-app ./k8s/charts/zta-demo-app -f ./k8s/dev/values-local.yaml
       - |
         kubens zta-demo
         echo "Upgrade status for all apps:"
         kubectl get all
 
-  port-forward-app1:
-    desc: "Forward local port 8081 to access app1"
+  port-forward-app:
+    desc: "Forward local port 8081 to access app"
     cmds:
       - kubectx kind-thesis-demo
       - kubens zta-demo
       - |
-        echo "Forwarding port 8081 -> 80 for app1 service"
-        echo "Access app1 at http://localhost:8081"
+        echo "Forwarding port 8081 -> 8080 for zta-demo-app service"
+        echo "Access app at http://localhost:8081"
         echo "Press Ctrl+C to stop port forwarding"
-        kubectl port-forward svc/app1 8081:80
-
-  port-forward-app2:
-    desc: "Forward local port 8082 to access app2"
-    cmds:
-      - kubectx kind-thesis-demo
-      - kubens zta-demo
-      - |
-        echo "Forwarding port 8082 -> 80 for app2 service"
-        echo "Access app2 at http://localhost:8082"
-        echo "Press Ctrl+C to stop port forwarding"
-        kubectl port-forward svc/app2 8082:80
+        kubectl port-forward svc/zta-demo-app-service 8081:8080
 
   expose-kubeconfig:
     desc: "Expose cluster kubeconfig"
@@ -140,114 +118,31 @@ tasks:
       - cat ~/.kube/config > config-k8s-dev.txt 
       - echo "Copy config-k8s-dev.txt into lens to view your cluster"
 
-  uninstall-apps1&2:
-    desc: "Uninstall both app1 and app2 from local cluster"
+  uninstall-app:
+    desc: "Uninstall the helm app from local cluster"
     cmds:
       - kubectx kind-thesis-demo
       - kubens zta-demo
-      - helm uninstall app1 || true
-      - helm uninstall app2 || true
-
-  # --------------------------
-  # Observability Stack Tasks
-  # --------------------------
-  observability-deploy:
-    desc: "Deploy observability stack (Grafana, Loki, Prometheus, Tempo, OpenTelemetry)"
-    deps: [create-cluster]
-    cmds:
-      - |
-        kubectx kind-thesis-demo
-        echo "Creating observability namespace..."
-        kubectl create namespace observability || echo "Namespace already exists"
-        
-        kubens observability
-        echo "Adding Helm repositories..."
-        helm repo add grafana https://grafana.github.io/helm-charts
-        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-        helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
-        helm repo update
-        
-        echo "Updating chart dependencies..."
-        helm dependency update ./k8s/charts/observability-stack
-        
-        echo "Deploying observability stack..."
-        helm upgrade --install observability-stack ./k8s/charts/observability-stack \
-          --wait \
-          --timeout 10m
-        
-        echo "Observability stack deployment status:"
-        kubectl get pods
-
-  observability-status:
-    desc: "Check observability stack status"
-    cmds:
-      - kubectx kind-thesis-demo
-      - kubens observability
-      - |
-        echo "=== Observability Stack Status ==="
-        kubectl get all
-        echo ""
-        echo "=== Pod Status ==="
-        kubectl get pods -o wide
-
-  port-forward-grafana:
-    desc: "Forward port 3000 to access Grafana dashboard"
-    cmds:
-      - kubectx kind-thesis-demo
-      - kubens observability
-      - |
-        echo "Forwarding port 3000 -> 80 for Grafana service"
-        echo "Access Grafana at http://localhost:3000"
-        echo "Username: admin | Password: admin123"
-        echo "Press Ctrl+C to stop port forwarding"
-        kubectl port-forward svc/observability-stack-grafana 3000:80
-
-  observability-logs:
-    desc: "View logs from observability stack components"
-    cmds:
-      - kubectx kind-thesis-demo
-      - kubens observability
-      - |
-        echo "=== Grafana Logs ==="
-        kubectl logs -l app.kubernetes.io/name=grafana --tail=20
-        echo ""
-        echo "=== Loki Logs ==="  
-        kubectl logs -l app.kubernetes.io/name=loki --tail=20
-        echo ""
-        echo "=== OpenTelemetry Collector Logs ==="
-        kubectl logs -l app.kubernetes.io/name=opentelemetry-collector --tail=20
-
-  observability-uninstall:
-    desc: "Uninstall observability stack"
-    cmds:
-      - kubectx kind-thesis-demo
-      - kubens observability
-      - helm uninstall observability-stack || echo "No release to uninstall"
-      - kubectl delete namespace observability || echo "No namespace to delete"
+      - helm uninstall zta-demo-app || true
 
   # --------------------------
   # Combined Deployment Tasks
   # --------------------------
   dev:
-    desc: "Deploy both applications and observability stack"
+    desc: "Deploy the app helm chart to the local cluster"
     deps: [create-cluster, create-namespace]
     cmds:
-      - task: observability-deploy
       - task: deploy-all-local
       - |
         echo ""
         echo "🎉 Full deployment complete!"
         echo "=== Access Information ==="
-        echo "• App1: kubectl port-forward svc/app1 8081:80 -n zta-demo"
-        echo "• App2: kubectl port-forward svc/app2 8082:80 -n zta-demo"
-        echo "• Grafana: kubectl port-forward svc/observability-stack-grafana 3000:80 -n observability"
+        echo "• App: kubectl port-forward svc/zta-demo-app 8081:80 -n zta-demo"
         echo ""
         echo "=== Quick Status Check ==="
         kubectx kind-thesis-demo
         kubens zta-demo
         kubectl get pods 
-        kubens observability
-        kubectl get pods
 
   cleanup-cluster:
     desc: "Cleanup kind cluster"
@@ -259,10 +154,7 @@ tasks:
     desc: "Cleanup helm releases"
     cmds:
       - kubectx kind-thesis-demo
-      - helm uninstall app1 || echo "No app1 release to uninstall"
-      - helm uninstall app2 || echo "No app2 release to uninstall"
-      - helm uninstall observability-stack || echo "No observability release to uninstall"
-      - helm uninstall kiali-operator || echo "No kiali release to uninstall"
+      - helm uninstall zta-demo-app || echo "No zta-demo-app release to uninstall"
 
   cleanup-all:
     desc: "Cleanup all resources"

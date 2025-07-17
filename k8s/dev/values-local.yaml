@@ -1,39 +1,30 @@
 # dev/values-local.yaml
 # Overrides to make the chart work on a laptop.
+replicaCount: 2
 
 image:
-  repository: docker.io/devopssean/zta_demo_app # uses local Docker daemon image
+  repository: docker.io/devopssean/zta_demo_app
   tag: "dev"
-  pullPolicy: Never               # don’t go to registry
+  pullPolicy: IfNotPresent
 
-ingress:
-  enabled: false                  # use port‑forward instead
+container:
+  name: zta-demo-app # must also match the name of the container in the argocd application definition
 
 service:
   type: ClusterIP
+  port: 8080
+  targetPort: 5000
 
-resources:
-  requests:
-    cpu: 50m
-    memory: 64Mi
-  limits:
-    cpu: 200m
-    memory: 256Mi
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 10
 
-autoscaling:
-  enabled: false
-
-externalSecret:
-  enabled: false                  # pull .env locally via Infisical CLI instead
-
-pdb:
-  enabled: false                  # not needed on single‑node dev
-
-podSecurityContext:
-  runAsNonRoot: false             # allow running as root for local dev
-
-observability:
-  enabled: true
-  env:
-    OTEL_EXPORTER_OTLP_ENDPOINT: "http://observability-stack-opentelemetry-collector.observability:4318"
-    OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
