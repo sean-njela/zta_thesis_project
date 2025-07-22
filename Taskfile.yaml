@@ -1,5 +1,9 @@
 version: '3'
 
+
+output: prefixed
+
+
 # ⬇️ 1. Load variables from a .env file
 dotenv: ['.env']
 
@@ -12,6 +16,18 @@ vars:
   BUILDER_NAME: '{{.BUILDER_NAME}}'
   COMPOSE_FILE: '{{.COMPOSE_FILE}}'
   PLATFORMS: '{{.PLATFORMS}}'
+  CLIENT_ID: '{{.CLIENT_ID}}'
+  CLIENT_SECRET: '{{.CLIENT_SECRET}}'
+  AUDIENCE: '{{.AUDIENCE}}'
+
+
+includes:
+  # Example include of shared tasks
+  common:
+    taskfile: ./Taskfile.gitflow.yaml
+    flatten: true
+
+
 tasks:
 
 # ─────────────────────────── Linting ───────────────────────────────
@@ -79,6 +95,8 @@ tasks:
         vars:
           TAG: '{{.TAG}}'
       - kubectx kind-thesis-demo
+      - kubens zta-demo
+      - task: istio-install
       - echo "Importing image to kind cluster..."
       - kind load docker-image {{.REPOSITORY}}:{{.TAG}} -n thesis-demo
 
@@ -171,64 +189,47 @@ tasks:
     cmds:
       - kubectx kind-thesis-demo
       - kubens zta-demo
-      - kubectl label namespace zta-demo istio-injection=enabled
-      #- kubectl apply -f https://raw.githubusercontent.com/istio/istio/1.17.11/manifests/istio-demo.yaml
+      - helm repo add istio https://istio-release.storage.googleapis.com/charts || echo "Istio repo already added"
+      - helm repo update
+
+      # Create istio-system
+      - kubectl create namespace istio-system || echo "Istio system namespace already exists"
+
+      # Install base
+      - helm install istio-base istio/base -n istio-system || echo "Istio base already installed"
+
+      # Install istiod
+      - helm install istiod istio/istiod -n istio-system || echo "Istio istiod already installed"
+
+      # Label your app namespace
+      - kubectl label ns zta-demo istio-injection=enabled || echo "Namespace zta-demo already labeled"
+
 
   istio-uninstall:
     desc: "Uninstall Istio from the cluster"
     cmds:
       - kubectx kind-thesis-demo
       - kubens zta-demo
-      #- kubectl delete -f https://raw.githubusercontent.com/istio/istio/1.17.11/manifests/istio-demo.yaml
-      - kubectl label namespace zta-demo istio-injection=disabled
+      - helm uninstall istio-base -n istio-system || echo "No istio-base release to uninstall"
+      - helm uninstall istiod -n istio-system || echo "No istiod release to uninstall"
+      - kubectl delete ns istio-system || echo "No istio-system namespace to delete"
 
 
-  # --------------------------
-  # Kiali Tasks
-  # -------------------------
-  kiali-install:
-    desc: "Deploy Kiali to the cluster"
+  get-token:
+    desc: "Get token for authn"
     cmds:
       - kubectx kind-thesis-demo
       - kubens zta-demo
       - |
-        helm repo add kiali https://kiali.org/helm-charts
-        helm install \
-          --set cr.create=true \
-          --set cr.namespace=zta-demo \
-          --namespace kiali-operator \
-          --create-namespace \
-          kiali-operator \
-          kiali/kiali-operator
+        token=$(curl --silent --request POST \
+          --url 'https://dev-2520d6cp0yv3yv5l.us.auth0.com/oauth/token' \
+          --header 'content-type: application/json' \
+          --data '{
+            "client_id": "{{.CLIENT_ID}}",
+            "client_secret": "{{.CLIENT_SECRET}}",
+            "audience": "{{.AUDIENCE}}",
+            "grant_type": "client_credentials"
+          }' | jq -r .access_token)
 
-  port-forward-kiali:
-    desc: "Port forward Kiali to the cluster"
-    cmds:
-      - kubectx kind-thesis-demo
-      - kubens zta-demo
-      - kubectl port-forward svc/kiali 20001:20001
-
-  generate-kiali-token:
-    desc: "Generate Kiali token"
-    cmds:
-      - kubectx kind-thesis-demo
-      - kubens zta-demo
-      - kubectl create token kiali-service-account
-
-
-  # --------------------------
-  # K8s Dashboard Tasks
-  # -------------------------
-  k8s-dashboard-install:
-    desc: "Deploy K8s Dashboard to the cluster"
-    cmds:
-      - kubectx kind-thesis-demo
-      - kubens zta-demo
-      #- kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.12.0/aio/deploy/recommended.yaml
-
-  k8s-dashboard-uninstall:
-    desc: "Uninstall K8s Dashboard from the cluster"
-    cmds:
-      - kubectx kind-thesis-demo
-      - kubens zta-demo
-      #- kubectl delete -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.12.0/aio/deploy/recommended.yaml
+        echo "$token" > token.txt
+        echo "Access token saved to token.txt run export token=$(cat token.txt)"

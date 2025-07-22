@@ -1,0 +1,13 @@
+{{ if .Values.authn.enabled }}
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: {{ include "myapp.fullname" . }}-requestauth
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "myapp.fullname" . }}
+  jwtRules:
+    - issuer: "https://dev-2520d6cp0yv3yv5l.us.auth0.com/"
+      jwksUri: "https://dev-2520d6cp0yv3yv5l.us.auth0.com/.well-known/jwks.json"
+{{ end }}

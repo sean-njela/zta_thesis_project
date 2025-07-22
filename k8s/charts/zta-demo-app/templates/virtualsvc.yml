@@ -1,0 +1,20 @@
+{{ if .Values.virtualsvc.enabled }}
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: {{ include "myapp.fullname" . }}-virtualsvc
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - {{ include "myapp.fullname" . }}-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /hello
+      route:
+        - destination:
+            host: {{ include "myapp.fullname" . }}-service
+            port:
+              number: 8080
+{{ end }}

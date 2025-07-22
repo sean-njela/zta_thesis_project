@@ -1,0 +1,18 @@
+{{ if .Values.authz.enabled }}
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "myapp.fullname" . }}-authpolicy
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "myapp.fullname" . }}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            requestPrincipals: ["*"]
+      when:
+        - key: request.auth.claims[aud]
+          values: ["https://zta-demo-api"]
+{{ end }}

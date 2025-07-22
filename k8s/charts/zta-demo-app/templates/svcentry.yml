@@ -1,0 +1,15 @@
+{{ if .Values.svcentry.enabled }}
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: google
+spec:
+  hosts: # exteernal hosts we can ping to from the cluster
+    - www.google.com
+  ports:
+    - number: 443
+      name: https
+      protocol: HTTPS
+  resolution: DNS
+  location: MESH_EXTERNAL
+{{ end }}
