@@ -55,7 +55,7 @@ FlaskInstrumentor().instrument_app(app)
 def hello():
     request_counter.add(1, {"endpoint": "/hello"})
     logger.info("Home endpoint was reached")
-    return "Hello I am reachable! from " + os.getenv("HOSTNAME")
+    return "Hello I am reachable! from " + os.getenv("HOSTNAME") + "\n"
 
 @app.route('/healthz')
 def healthz():
@@ -74,13 +74,13 @@ def slow():
     request_counter.add(1, {"endpoint": "/slow"})
     logger.warning("Slow endpoint was reached")
     time.sleep(2)
-    return "Slow response"
+    return "Slow response" + "\n"
 
 @app.route("/error")
 def error():
     request_counter.add(1, {"endpoint": "/error"})
     try:
-        raise Exception("This is a simulated error.")
+        raise Exception("This is a simulated error. \n")
     except Exception as e:
         logger.error("An error occurred at the error endpoint", exc_info=True)
         # Re-raise the exception to trigger a 500 error

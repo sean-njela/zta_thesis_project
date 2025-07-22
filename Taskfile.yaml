@@ -1,0 +1,235 @@
+version: '3'
+
+
+output: prefixed
+
+
+# ⬇️ 1. Load variables from a .env file
+dotenv: ['.env']
+
+# ⬇️ 2. Assign the loaded environment variables to Task variables
+vars:
+  REPOSITORY: '{{.REPOSITORY}}'
+  TAG: '{{.TAG | default "$(git rev-parse --short HEAD)"}}'
+  DOCKERFILE: '{{.DOCKERFILE}}'
+  CONTEXT: '{{.CONTEXT}}'
+  BUILDER_NAME: '{{.BUILDER_NAME}}'
+  COMPOSE_FILE: '{{.COMPOSE_FILE}}'
+  PLATFORMS: '{{.PLATFORMS}}'
+  CLIENT_ID: '{{.CLIENT_ID}}'
+  CLIENT_SECRET: '{{.CLIENT_SECRET}}'
+  AUDIENCE: '{{.AUDIENCE}}'
+
+
+includes:
+  # Example include of shared tasks
+  common:
+    taskfile: ./Taskfile.gitflow.yaml
+    flatten: true
+
+
+tasks:
+
+# ─────────────────────────── Linting ───────────────────────────────
+  lint-helm:
+    desc: "Lint Helm charts"
+    cmds:
+      - helm lint ./k8s/charts/zta-demo-app
+      - helm lint ./k8s/charts/observability-stack
+
+  # --------------------------
+  # Helm Deployment Tasks
+  # --------------------------
+  create-cluster:
+    desc: "Create a Kind cluster if it doesn't already exist"
+    cmds:
+      - kind create cluster -n thesis-demo --image kindest/node:v1.33.1 || echo "Cluster already exists"
+    status:
+      - kind get clusters | grep kind-thesis-demo
+
+  create-namespace:
+    desc: "Create a namespace for the Helm deployment"
+    cmds:
+      - kubectl create namespace zta-demo || echo "Namespace already exists"
+
+  setup-buildx:
+    desc: Create and bootstrap Buildx builder
+    cmds:
+      - docker buildx create --name {{.BUILDER_NAME}} --use || true
+      - docker buildx inspect {{.BUILDER_NAME}} --bootstrap
+
+  build-local:
+    desc: Build local Docker image (no push)
+    deps: [setup-buildx]
+    cmds:
+      - docker buildx build --platform {{.PLATFORMS}} --file {{.DOCKERFILE}} --tag {{.REPOSITORY}}:{{.TAG}} . --load
+
+  build-push:
+    desc: Build multi-platform Docker image (push to registry)
+    deps: [setup-buildx]
+    cmds:
+      - docker buildx build --platform {{.PLATFORMS}} --file {{.DOCKERFILE}} --tag {{.REPOSITORY}}:{{.TAG}} --tag {{.REPOSITORY}}:latest . --push
+
+
+  _deploy:
+    internal: true
+    cmds:
+      - |
+        echo "Deploying Helm chart for {{.RELEASE_NAME}}..."
+        kubens zta-demo
+        helm upgrade --install {{.RELEASE_NAME}} \
+          ./k8s/charts/zta-demo-app \
+          -f ./k8s/dev/values-local.yaml \
+        
+        echo "Waiting for pods of {{.RELEASE_NAME}} to be ready..."
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance={{.RELEASE_NAME}} --timeout=60s || true
+
+  deploy-all-local:
+    desc: "Deploy the app helm chart to the local cluster"
+    deps: [create-cluster, create-namespace]
+    vars:
+      TAG: '{{.TAG | default "dev"}}'
+    cmds:
+      - echo "Building local Docker image with tag {{.TAG}}..."
+      - task: build-local
+        vars:
+          TAG: '{{.TAG}}'
+      - kubectx kind-thesis-demo
+      - kubens zta-demo
+      - task: istio-install
+      - echo "Importing image to kind cluster..."
+      - kind load docker-image {{.REPOSITORY}}:{{.TAG}} -n thesis-demo
+
+      - task: _deploy
+        vars:
+          RELEASE_NAME: zta-demo-app
+      - |
+        kubens zta-demo
+        echo "Deployment status for all apps:"
+        kubectl get all
+
+  upgrade-all:
+    desc: "Upgrades the app helm chart when changes are made"
+    vars:
+      TAG: '{{.TAG | default "dev"}}'
+    cmds:
+      - helm upgrade zta-demo-app ./k8s/charts/zta-demo-app -f ./k8s/dev/values-local.yaml
+      - |
+        kubens zta-demo
+        echo "Upgrade status for all apps:"
+        kubectl get all
+
+  port-forward-app:
+    desc: "Forward local port 8081 to access app"
+    cmds:
+      - kubectx kind-thesis-demo
+      - kubens zta-demo
+      - |
+        echo "Forwarding port 8081 -> 8080 for zta-demo-app service"
+        echo "Access app at http://localhost:8081"
+        echo "Press Ctrl+C to stop port forwarding"
+        kubectl port-forward svc/zta-demo-app-service 8081:8080
+
+  expose-kubeconfig:
+    desc: "Expose cluster kubeconfig"
+    cmds:
+      - cat ~/.kube/config > config-k8s-dev.txt 
+      - echo "Copy config-k8s-dev.txt into lens to view your cluster"
+
+  uninstall-app:
+    desc: "Uninstall the helm app from local cluster"
+    cmds:
+      - kubectx kind-thesis-demo
+      - kubens zta-demo
+      - helm uninstall zta-demo-app || true
+
+  # --------------------------
+  # Combined Deployment Tasks
+  # --------------------------
+  dev:
+    desc: "Deploy the app helm chart to the local cluster"
+    deps: [create-cluster, create-namespace]
+    cmds:
+      - task: deploy-all-local
+      - |
+        echo ""
+        echo "🎉 Full deployment complete!"
+        echo "=== Access Information ==="
+        echo "• App: kubectl port-forward svc/zta-demo-app 8081:80 -n zta-demo"
+        echo ""
+        echo "=== Quick Status Check ==="
+        kubectx kind-thesis-demo
+        kubens zta-demo
+        kubectl get pods 
+
+  cleanup-cluster:
+    desc: "Cleanup kind cluster"
+    cmds:
+      - kubectx kind-thesis-demo
+      - kind delete cluster -n thesis-demo || echo "No cluster to delete"
+
+  cleanup-helm:
+    desc: "Cleanup helm releases"
+    cmds:
+      - kubectx kind-thesis-demo
+      - helm uninstall zta-demo-app || echo "No zta-demo-app release to uninstall"
+
+  cleanup-all:
+    desc: "Cleanup all resources"
+    cmds:
+      - task: cleanup-cluster
+      - task: cleanup-helm
+
+
+  # --------------------------
+  # Istio Tasks
+  # -------------------------
+  istio-install:
+    desc: "Deploy Istio to the cluster"
+    cmds:
+      - kubectx kind-thesis-demo
+      - kubens zta-demo
+      - helm repo add istio https://istio-release.storage.googleapis.com/charts || echo "Istio repo already added"
+      - helm repo update
+
+      # Create istio-system
+      - kubectl create namespace istio-system || echo "Istio system namespace already exists"
+
+      # Install base
+      - helm install istio-base istio/base -n istio-system || echo "Istio base already installed"
+
+      # Install istiod
+      - helm install istiod istio/istiod -n istio-system || echo "Istio istiod already installed"
+
+      # Label your app namespace
+      - kubectl label ns zta-demo istio-injection=enabled || echo "Namespace zta-demo already labeled"
+
+
+  istio-uninstall:
+    desc: "Uninstall Istio from the cluster"
+    cmds:
+      - kubectx kind-thesis-demo
+      - kubens zta-demo
+      - helm uninstall istio-base -n istio-system || echo "No istio-base release to uninstall"
+      - helm uninstall istiod -n istio-system || echo "No istiod release to uninstall"
+      - kubectl delete ns istio-system || echo "No istio-system namespace to delete"
+
+
+  get-token:
+    desc: "Get token for authn"
+    cmds:
+      - kubectx kind-thesis-demo
+      - kubens zta-demo
+      - |
+        token=$(curl --silent --request POST \
+          --url 'https://dev-2520d6cp0yv3yv5l.us.auth0.com/oauth/token' \
+          --header 'content-type: application/json' \
+          --data '{
+            "client_id": "{{.CLIENT_ID}}",
+            "client_secret": "{{.CLIENT_SECRET}}",
+            "audience": "{{.AUDIENCE}}",
+            "grant_type": "client_credentials"
+          }' | jq -r .access_token)
+
+        echo "$token" > token.txt
+        echo "Access token saved to token.txt run export token=$(cat token.txt)"

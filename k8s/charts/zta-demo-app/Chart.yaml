@@ -1,18 +1,5 @@
 apiVersion: v2
 name: zta-demo-app
-version: 0.1.0   # bump with semver
-appVersion: "1.0.0"  # overridden by CI to Git SHA
-kubeVersion: ">= 1.21.0-0"
-description: |
-  A battle‑tested Helm chart for my thesis demo app.
-keywords:
-  - web
-  - deployment
-  - kubernetes
-  - helm
-maintainers:
-  - name: Sean Njela
-    email: seannjela@yahoo.com
-sources:
-  - https://github.com/sean-njela/zta_thesis_project
-icon: https://raw.githubusercontent.com/kubernetes/kubernetes/master/logo/logo.png
+description: A basic Helm chart for my ZTA app
+version: 0.1.0
+appVersion: "1.21.6"
