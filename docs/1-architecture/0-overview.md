@@ -4,18 +4,18 @@ This section provides a high-level overview of the architecture and design decis
 
 Normally applications are secure at the perimeter of the network. This can cause issues when an application is compromised, as the attacker can access the entire network by moving laterally.
 
+This project demonstrates a shift from traditional perimeter-based models to a Zero Trust Architecture (ZTA) using Kubernetes, Istio, and a microservices deployment. Initially, an application is deployed without ZTA, allowing unrestricted cross-service communication. Then, ZTA features are enabled, which blocks unauthorized service calls until a valid token is presented.
+
 ![System Diagram without ZTA](../assets/top1.png) 
 
 ---
 
 ## 📐 Design Philosophy
 
-Summarize your approach or values. Examples:
-
-- Modular and composable
-- Secure by default
-- Automation-first (e.g., IaC, CI/CD)
-- Portable/local-dev friendly
+* Modular and composable: Each component, from the service mesh to application services, is isolated and independently replaceable.
+* Secure by default: With ZTA activated, all communication is encrypted, authenticated, and authorized.
+* Automation-first: Environment provisioning, cluster setup, and app deployment are fully automated via Taskfile and Helm.
+* Portable/local-dev friendly: Runs in a local Kind cluster, simulating real-world distributed infrastructure for testing and experimentation.
 
 ---
 
@@ -23,48 +23,54 @@ Summarize your approach or values. Examples:
 
 ### 1. Infrastructure
 
-- Describe how infrastructure is provisioned (e.g., Terraform, Pulumi)
-- Where it's deployed (e.g., local Kind cluster, cloud, etc.)
-- Example:
-  - **Kind** cluster created via `task dev`
-  - **Terraform** used to manage Argo CD and related resources
+* A local Kind cluster (task dev) is used to simulate a production-like Kubernetes environment.
+* All deployments (Istio, demo app, policies) are automated and declarative.
+* Helm is used to package and manage Kubernetes resources for the ZTA demo app.
+* ZTA features can be toggled using Taskfile commands (task activate-zta, task deactivate-zta).
 
 ### 2. CI/CD
 
-- What tools handle deployment?
-- Example:
-  - **Argo CD** handles Kubernetes app delivery using the **App of Apps** pattern
-  - Image updates via **argocd-image-updater**
-  - Optional notification layer (e.g., Slack integration)
+* While no external CI/CD pipelines were configured, Git-style workflows are facilitated by Taskfile.gitflow.yaml.
+* Application images are built and optionally pushed using Docker Buildx.
+* Deployment automation mirrors GitOps-like patterns using Helm and manifests, although ArgoCD was not used in this version.
 
 ### 3. Secrets & Configuration
 
-- Mention secret handling (e.g., Sealed Secrets, SOPS, Vault)
-- Config management tools (e.g., Helm, Kustomize)
+* Secrets and feature flags (such as enabling/disabling ZTA components) are managed via values-local.yaml.
+* Secure configuration toggling is done using yq, enabling safe and auditable activation of:
+* `authn`, `authz`, `gateway`, `svcentry`, `virtualsvc` components in Istio.
+* Token-based authentication flows are handled via an external Auth0-compatible provider with credentials set in .env.
 
 ---
 
 ## 🔀 Architecture Diagram
 
-Add a visual overview of your system if available.
-
 ![System Diagram with ZTA](../assets/top2.png)
 
-If not available yet, note:
-
-*Architecture diagram to be added in a future update.*
+This diagram shows the same service mesh and microservices environment, but with ZTA enabled. All inter-service traffic is blocked unless explicitly authorized via mTLS and policy rules. Services must present valid identities and tokens to access restricted endpoints.
 
 ---
 
 ## 🔄 Data / Control Flow
 
-Explain the high-level lifecycle or data flow:
+The following summarizes the lifecycle of the system and how traffic is controlled:
 
-1. User runs `task dev`
-2. Terraform provisions resources
-3. Argo CD bootstraps itself and deploys other apps
-4. Image updater checks container registries and pushes updates
-5. Notifications triggered via webhook → Slack
+ 1. User runs task dev:
+
+    * Kind cluster is created and configured.
+    * Istio is installed and namespace is labeled for sidecar injection.
+ 
+ 2. Helm chart for zta-demo-app is deployed to the cluster.
+
+ 3. Initially, ZTA components (authn/authz) are disabled; inter-service traffic flows unrestricted.
+
+ 4. task activate-zta modifies the Helm values to enable Istio ZTA resources.
+
+ 5. Unauthorized service requests are now blocked.
+
+ 6. A valid token is fetched via task get-token and used in a curl command inside the pod to access protected endpoints.
+
+ 7. Logs and metrics are collected using Prometheus, Grafana, and Istio’s built-in observability stack.
 
 ---
 

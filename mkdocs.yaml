@@ -152,9 +152,7 @@ nav:
   - Architecture:
       - System Overview: 1-architecture/0-overview.md
   - MyProject: # This becomes the main docs for whatever you are building
-      - Project Topic 1: 2-project/0-topic1.md
-      - Project Topic 2: 2-project/1-topic2.md
-      - Project Topic 3: 2-project/2-topic3.md
+      - Implementation: 2-project/0-topic1.md
       # etc.
   - Tasks:
       - Tasks: 2-project/tasks/0-overview.md
@@ -163,8 +161,8 @@ nav:
       # etc.
   - Troubleshooting:
       - Troubleshooting: 3-troubleshooting/0-overview.md
-      - Problem 1: 3-troubleshooting/1-problem1.md
-      - Problem 2: 3-troubleshooting/2-problem2.md
+      - Inter-service Call Fails After ZTA Activation: 3-troubleshooting/1-problem1.md
+      - Requests Fail Immediately After `activation/deactivation: 3-troubleshooting/2-problem2.md
       # etc.
   - About Me:
       - About Me: 4-about/0-about.md

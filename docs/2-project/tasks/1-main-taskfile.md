@@ -1,7 +1,6 @@
-
 # 🧰 Main Taskfile Overview
 
-This section describes the purpose and layout of the main `Taskfile.yml` used in this project. The Taskfile defines automation tasks to simplify development workflows and ensure consistency across environments.
+This section describes the purpose and layout of the main `Taskfile.yaml` used in this project. The Taskfile defines automation tasks to simplify development workflows and ensure consistency across environments.
 
 ---
 
@@ -9,11 +8,12 @@ This section describes the purpose and layout of the main `Taskfile.yml` used in
 
 This Taskfile provides command-line shortcuts for tasks like:
 
-- Project setup
-- Development environment bootstrapping
-- Application deployment
-- Local documentation serving
-- Cleanup and teardown
+* Bootstrapping a local Kind cluster with Istio
+* Deploying the ZTA-enabled demo app using Helm
+* Toggling Zero Trust policies on/off
+* Building and pushing Docker images
+* Fetching authorization tokens for mTLS-authenticated service access
+* Serving MkDocs-based documentation locally
 
 It abstracts repetitive shell commands into named tasks you can run with:
 
@@ -29,41 +29,43 @@ task <task-name>
 
 Includes tasks for:
 
-* Installing dependencies
-* Setting up local development tools
-* Generating keys or configs (if applicable)
+* Creating the Kind cluster (`task create-cluster`)
+* Labeling namespaces for Istio sidecar injection
+* Preparing Docker Buildx builder for multi-platform builds
+* Creating necessary namespaces (`zta-demo`)
 
 ### 2. **Development Workflow**
 
 Common tasks for:
 
-* Starting local services or dev containers
-* Running dev servers
-* Applying Kubernetes configs or local manifests
-* Watching for file changes
+* Starting the full dev environment with `task dev`
+* Automatically deploying Istio and Helm charts
+* Port-forwarding to access the app on `localhost:8081`
+* Activating and deactivating ZTA (`task activate-zta`, `task deactivate-zta`)
 
 ### 3. **Documentation**
 
 Tasks to:
 
-* Serve documentation locally (e.g., MkDocs)
-* Build or deploy docs (if using GitHub Pages or mike)
+* Serve documentation locally using MkDocs (`task docs`)
+* Automatically watch for changes and hot-reload the preview
 
 ### 4. **Deployment & Automation**
 
-Tasks may automate:
+Tasks automate:
 
-* Building and pushing Docker images
-* Running linters or formatters
-* Applying infrastructure changes (e.g., with Terraform)
+* Building Docker images (`task build-local`, `task build-push`)
+* Pushing images to remote registries
+* Upgrading app Helm chart (`task upgrade-all`)
+* Applying dynamic config changes using `yq`
 
 ### 5. **Cleanup & Teardown**
 
 Includes safe commands to:
 
-* Tear down local clusters or containers
-* Remove generated files or environments
-* Reset state for fresh runs
+* Remove Kind cluster and Helm releases (`task cleanup-dev`)
+* Delete generated files like `token.txt` and kubeconfigs
+* Reset state for fresh Zero Trust experiments
 
 ---
 
@@ -73,27 +75,39 @@ A typical flow using this Taskfile might look like:
 
 * Set up your environment:
 
-   ```bash
-   task setup
-   ```
+  ```bash
+  task setup
+  ```
 
 * Start development:
 
-   ```bash
-   task dev
-   ```
+  ```bash
+  task dev
+  ```
+
+* Activate Zero Trust:
+
+  ```bash
+  task activate-zta
+  ```
+
+* Get a valid token and test curl:
+
+  ```bash
+  task get-token
+  ```
 
 * Serve documentation:
 
-   ```bash
-   task docs
-   ```
+  ```bash
+  task docs
+  ```
 
 * Clean up:
 
-   ```bash
-   task cleanup
-   ```
+  ```bash
+  task cleanup-dev
+  ```
 
 ---
 
@@ -108,7 +122,7 @@ A typical flow using this Taskfile might look like:
 * Variables and flags can be passed to tasks like so:
 
   ```bash
-  task my-task <var>=<value>
+  task build-local TAG=mytag
   ```
 
 * You can structure task dependencies using `deps:` and reuse shell logic cleanly across environments.
@@ -117,17 +131,19 @@ A typical flow using this Taskfile might look like:
 
 ## 📝 Tips
 
-| Key | Description |
-| --- | --- |
-| dotenv + env: | auto-load .env files and allow task-specific overrides. |
-| vars: | static or dynamic variables (via shell) for templated substitution. |
-| prompt: | even for setup or prod, ask user before proceeding. |
-| preconditions: | enforce environment state before running. |
-| deps: | define ordering (serial) via deps for safety and repeatability. |
-| internal: | hide helper tasks from user listings. |
-| platforms: | restrict tasks to specific OS/arch. |
-| requires: | enforce required input variables. |
-| status: | skip tasks if outputs already exist. |
+| Key            | Description                                                                 |
+| -------------- | --------------------------------------------------------------------------- |
+| dotenv + env:  | Loads `.env` to inject secrets like Auth0 credentials.                      |
+| vars:          | Supports Git-derived tags or CLI overrides for dynamic configuration.       |
+| prompt:        | Use confirmation prompts before destructive actions (e.g., uninstall).      |
+| preconditions: | Ensure cluster exists before attempting deployment.                         |
+| deps:          | Used to serialize setup steps (e.g., `setup` → `create-cluster` → `istio`). |
+| internal:      | Tasks like `_deploy` are hidden helpers invoked only by higher-level tasks. |
+| platforms:     | Set up Buildx for multi-arch Docker builds if targeting ARM or others.      |
+| requires:      | Not used here, but can enforce vars like `REPOSITORY`.                      |
+| status:        | Skips setup if the cluster is already running (e.g., using `kubectx`).      |
+
+---
 
 ## 🔗 Related Docs
 
@@ -139,6 +155,5 @@ A typical flow using this Taskfile might look like:
 
 ## 📬 Contact
 
-For issues or suggestions related to automation and task structure, open an issue or contact the maintainer at [your.email@example.com](mailto:your.email@example.com).
+For issues or suggestions related to automation and task structure, open an issue or contact the maintainer at [sean.njela@gmail.com](mailto:sean.njela@gmail.com).
 
----
