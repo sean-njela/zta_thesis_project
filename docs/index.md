@@ -1,42 +1,34 @@
-# 🚀 Project Title
+# 🚀 Zero Trust Microservices Demo
 
-<!--
-  NOTE: Internal links should use clean URL style (no `.md` extension)
-  Example: [Quick Start](/0-quickstart/getting-started/)
-  MkDocs and Material auto-resolve these based on the nav structure.
--->
+**A hands-on implementation of Zero Trust Architecture using Kubernetes, Istio, and Helm.**
 
-
-**One‑line project tagline or mission statement.**
-
-Welcome to the official documentation site for **Project Title**! This site includes full guides on setup, architecture, usage, and more.
+Welcome to the official documentation site for **Zero Trust Microservices Demo**! This site provides full guides on setup, architecture, usage, performance analysis, and security enforcement using Zero Trust principles.
 
 ---
 
 ## 🧭 Quick Overview
 
-Give users a brief snapshot of:
-- 🔧 What your project does
-- 🎯 The primary problem it solves
-- 🔗 A link to live demo or deployed service (if applicable)
+* 🔧 This project simulates a microservices deployment inside a local Kubernetes cluster with Zero Trust enforcement using Istio.
+* 🎯 It demonstrates how service-to-service communication is secured via identity, mTLS, and fine-grained RBAC policies.
+* 🔗 Live demo not hosted, but reproducible fully in a local environment using `Kind` and `task dev`.
 
 ---
 
 ## ⚡ Getting Started
 
-Visit the **[Quick Start](0-quickstart/1-getting-started.md)** page in the docs for full instructions.
+Visit the **[Quick Start](0-quickstart/1-getting-started.md)** page in the docs for step-by-step instructions to bootstrap your cluster, deploy services, and simulate traffic flow with and without Zero Trust.
 
 ---
 
 ## 📐 Architecture & Components
 
-Explore how the project is structured:
+Dive into how the project is architected:
 
-* High-level diagrams and workflows
-* Key modules or services
-* Technology stack and dependencies
+* 🔄 Deployment is Helm-based using a modular chart (`zta-demo-app`)
+* 🔒 Security is handled by Istio + SPIRE for workload identity
+* 🧱 Infra is bootstrapped using `Taskfile.yaml` with zero manual steps
 
-Visit **[Architecture](1-architecture/0-overview.md)** for details.
+For full diagrams, workflows, and explanations, visit **[Architecture](1-architecture/0-overview.md)**.
 
 ---
 
@@ -44,20 +36,21 @@ Visit **[Architecture](1-architecture/0-overview.md)** for details.
 
 * **Quick Start** → Setup, prerequisites, and usage
 * **Architecture** → System overview, component breakdown
-* **Features / Topics** → Detailed guides and explanations
-* **About Me** → Author info, contact, and background
+* **Features / Topics** → ZTA toggling, service access flows, token authentication
+* **About Me** → Author info and project background
 
-Navigation is in the sidebar for easy access.
+Use the sidebar for easy navigation.
 
 ---
 
 ## 🧪 Examples & Use Cases
 
-Briefly bullet main use cases or examples to help users immediately grasp the project’s capabilities.
+Key examples this project demonstrates:
 
-* Use Case #1: What it does, why it matters
-* Use Case #2: Another compelling scenario
-* …
+* 🧪 Insecure service communication in a typical mesh setup
+* 🔐 Enforcement of Zero Trust via Istio AuthorizationPolicy and PeerAuthentication
+* 📉 Latency benchmarking before vs after ZTA activation
+* 🛡️ Realistic threat modeling: lateral movement blocked without identity
 
 ---
 
