@@ -19,6 +19,7 @@ vars:
   CLIENT_ID: '{{.CLIENT_ID}}'
   CLIENT_SECRET: '{{.CLIENT_SECRET}}'
   AUDIENCE: '{{.AUDIENCE}}'
+  AUTH0_URL: '{{.AUTH0_URL}}'
 
 
 includes:
@@ -69,6 +70,13 @@ tasks:
     deps: [setup-buildx]
     cmds:
       - docker buildx build --platform {{.PLATFORMS}} --file {{.DOCKERFILE}} --tag {{.REPOSITORY}}:{{.TAG}} --tag {{.REPOSITORY}}:latest . --push
+
+  setup:
+    desc: "Setup the environment"
+    cmds:
+      - task: create-cluster
+      - task: create-namespace
+      - task: setup-buildx
 
 
   _deploy:
@@ -154,8 +162,10 @@ tasks:
       - |
         echo ""
         echo "🎉 Full deployment complete!"
-        echo "=== Access Information ==="
-        echo "• App: kubectl port-forward svc/zta-demo-app 8081:80 -n zta-demo"
+        echo "=== To Access The App ==="
+        echo "• App: kubectl port-forward svc/zta-demo-app-service 8081:8080 -n zta-demo"
+        echo "• Then access app at http://localhost:8081/hello"
+        echo "• Or in the terminal: http localhost:8081/hello"
         echo ""
         echo "=== Quick Status Check ==="
         kubectx kind-thesis-demo
@@ -174,11 +184,13 @@ tasks:
       - kubectx kind-thesis-demo
       - helm uninstall zta-demo-app || echo "No zta-demo-app release to uninstall"
 
-  cleanup-all:
+  cleanup-dev:
     desc: "Cleanup all resources"
     cmds:
       - task: cleanup-cluster
       - task: cleanup-helm
+      - rm token.txt
+      - rm config-k8s-dev.txt
 
 
   # --------------------------
@@ -218,11 +230,9 @@ tasks:
   get-token:
     desc: "Get token for authn"
     cmds:
-      - kubectx kind-thesis-demo
-      - kubens zta-demo
       - |
         token=$(curl --silent --request POST \
-          --url 'https://dev-2520d6cp0yv3yv5l.us.auth0.com/oauth/token' \
+          --url '{{.AUTH0_URL}}' \
           --header 'content-type: application/json' \
           --data '{
             "client_id": "{{.CLIENT_ID}}",
@@ -232,4 +242,63 @@ tasks:
           }' | jq -r .access_token)
 
         echo "$token" > token.txt
-        echo "Access token saved to token.txt run export token=$(cat token.txt)"
+        echo "Copy the token from token.txt"
+      - echo "SSH into a pod, save the token as a shell variable and use it in a Header (-H) to curl http://zta-demo-app-service:8080/hello when ZTA is activated"
+
+
+  docs:
+    desc: "Build docs"
+    cmds:
+      - poetry run mkdocs serve
+
+
+  yq:
+    desc: "Install yq if not already installed"
+    cmds:
+      - mkdir -p yq
+      - wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O yq/yq
+      - chmod +x yq/yq
+      - export PATH=$PWD/yq:$PATH
+
+  
+  activate-zta:
+    desc: "Activate ZTA in the cluster"
+    cmds:
+      - >
+        yq -i '
+          .authn.enabled = true |
+          .authz.enabled = true |
+          .gateway.enabled = true |
+          .virtualsvc.enabled = true |
+          .svcentry.enabled = true
+        ' ./k8s/dev/values-local.yaml
+      - > 
+        yq e '
+          .authn.enabled,
+          .authz.enabled,
+          .gateway.enabled,
+          .virtualsvc.enabled,
+          .svcentry.enabled' ./k8s/dev/values-local.yaml
+      - task: upgrade-all
+      - echo "ZTA activated"
+  
+  deactivate-zta:
+    desc: "Deactivate ZTA in the cluster"
+    cmds:
+      - >
+        yq -i '
+          .authn.enabled = false |
+          .authz.enabled = false |
+          .gateway.enabled = false |
+          .virtualsvc.enabled = false |
+          .svcentry.enabled = false
+        ' ./k8s/dev/values-local.yaml
+      - > 
+        yq e '
+          .authn.enabled,
+          .authz.enabled,
+          .gateway.enabled,
+          .virtualsvc.enabled,
+          .svcentry.enabled' ./k8s/dev/values-local.yaml
+      - task: upgrade-all
+      - echo "ZTA deactivated"

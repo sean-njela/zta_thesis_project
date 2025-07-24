@@ -11,7 +11,6 @@
     "helmfile@1.1",
     "kind@0.29",
     "tilt@0.35",
-    "yq@3.4",
     "jq@1.8",
     "yamllint@1.37",
     "alsa-lib@1.2",
@@ -25,7 +24,8 @@
   "shell": {
     "init_hook": [
       "source ~/.aliases",
-      "source ./.venv/bin/activate"
+      "source ./.venv/bin/activate",
+      "export PATH=$PWD/yq:$PATH"
     ],
     "scripts": {
       "test": [
