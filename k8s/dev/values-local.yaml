@@ -1,56 +1,33 @@
 replicaCount: 2
-
 image:
   repository: docker.io/devopssean/zta_demo_app
   tag: "dev"
-
 container:
   name: zta-demo-app # must also match the name of the container in the argocd application definition
-
 service:
   type: ClusterIP
   port: 8080
   targetPort: 5000
-
 livenessProbe:
   httpGet:
     path: /healthz
     port: http
   initialDelaySeconds: 15
   periodSeconds: 10
-
 readinessProbe:
   httpGet:
     path: /ready
     port: http
   initialDelaySeconds: 5
   periodSeconds: 5
-
-
-
   # ZTA 
-
-
 authn:
   enabled: true
-
-
-
 authz:
   enabled: true
-
-
-
 gateway:
   enabled: true
-
-
-
 virtualsvc:
   enabled: true
-
-
-
 svcentry:
   enabled: true
-
