@@ -1,10 +1,7 @@
 <div align="center">
 
   <!-- Optional logo -->
-  <div style="display: flex; gap: 10px;">
-    <img src="assets/top1.png" alt="top1" style="width: 48%;" />
-    <img src="assets/top2.png" alt="top2" style="width: 48%;" />
-  </div>
+  
 
   <h1>📘 Zero Trust in Microservices Architecture Demo</h1>
 
@@ -55,8 +52,10 @@
 
 <div align="center"> 
   <h4>Before Zero Trust Architecture</h4>
+  <img src="assets/top1.png" alt="top1" width="900" />
   <img src="assets/screenshot1.png" alt="screenshot1" width="900" />
   <h4>After Zero Trust Architecture</h4>
+  <img src="assets/top2.png" alt="top2" width="900" />
   <img src="assets/screenshot2.png" alt="screenshot2" width="900" />
 </div>
 
