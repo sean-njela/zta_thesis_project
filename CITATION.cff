@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this thesis project or refer to its implementation, please cite it as below."
+authors:
+  - family-names: "Njela"
+    given-names: "Sean"
+    orcid: ""  # Optional: Add your ORCID ID if you have one
+title: "Zero Trust Architecture in Microservices: A Cloud-Native Implementation"
+version: 1.0.0
+date-released: 2025-06-24
+url: "https://github.com/sean-njela/zta_thesis_project"
+repository-code: "https://github.com/sean-njela/zta_thesis_project"
+license: MIT
+keywords:
+  - zero trust
+  - microservices
+  - kubernetes
+  - service mesh
+  - SPIRE
+  - Istio
+  - cloud-native
+  - thesis
+abstract: >
+  This project implements a Zero Trust-based microservices architecture using Kubernetes, Istio, SPIRE, and Vault.
+  It accompanies the author's Master's thesis and demonstrates practical deployment and validation of Zero Trust principles
+  in a cloud-native environment. It includes full documentation, observability tooling, and security policy enforcement strategies.
