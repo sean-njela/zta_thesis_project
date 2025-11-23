@@ -23,8 +23,7 @@
   ],
   "shell": {
     "init_hook": [
-      "source ~/.aliases",
-      "source ./.venv/bin/activate",
+      "poetry install",
       "export PATH=$PWD/yq:$PATH"
     ],
     "scripts": {
