@@ -187,10 +187,11 @@ tasks:
   cleanup-dev:
     desc: "Cleanup all resources"
     cmds:
+      - task: deactivate-zta
       - task: cleanup-cluster
-      - task: cleanup-helm
-      - rm token.txt
-      - rm config-k8s-dev.txt
+      # - task: cleanup-helm
+      - rm token.txt || true
+      - rm config-k8s-dev.txt || true
 
 
   # --------------------------
@@ -302,3 +303,11 @@ tasks:
           .svcentry.enabled' ./k8s/dev/values-local.yaml
       - task: upgrade-all
       - echo "ZTA deactivated"
+
+  status:
+    desc: "Status"
+    cmds:
+      - |
+        kubectx kind-thesis-demo
+        kubens zta-demo
+        kubectl get pods

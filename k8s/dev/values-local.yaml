@@ -22,12 +22,12 @@ readinessProbe:
   periodSeconds: 5
   # ZTA 
 authn:
-  enabled: true
+  enabled: false
 authz:
-  enabled: true
+  enabled: false
 gateway:
-  enabled: true
+  enabled: false
 virtualsvc:
-  enabled: true
+  enabled: false
 svcentry:
-  enabled: true
+  enabled: false

@@ -100,7 +100,7 @@ curl zta-demo-app-service:8080/hello
 Returns:
 
 ```text
-RBAC: access denied
+> RBAC: access denied
 ```
 
 Zero Trust policies enforced via Istio now block all traffic that is not explicitly allowed.
@@ -128,7 +128,17 @@ task get-token
 
 This retrieves a JWT access token using the configured Auth0 credentials and writes it to `token.txt`.
 
-* Then use it inside the pod:
+```bash
+cat token.txt
+```
+
+Then copy the value and inside the container:
+
+```bash
+export token=wmfbmdsjl.....
+```
+
+* Then use it as:
 
 ```bash
 curl zta-demo-app-service:8080/hello -H "Authorization: Bearer $token"
@@ -187,7 +197,6 @@ Total: 0.005916s
 
 ![screenshot4](../assets/screenshot4.png)
 
-
 ---
 
 ## 🧠 Performance Perspective
@@ -201,4 +210,3 @@ The added latency of \~435 microseconds (µs) is negligible:
 | Latency added by ZTA | \~0.0004 seconds  |
 
 > 🔐 In return for this near-zero impact, we gain end-to-end service authentication, traffic encryption, and granular access control.
-
