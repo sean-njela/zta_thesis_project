@@ -126,9 +126,7 @@ This is well below any threshold that would cause concern in 99% of systems.
 3. **Start the Devbox Environment and poetry environment**
 
    ```bash
-   devbox shell # Start the devbox environment (this will also start the poetry environment)
-   poetry install # Install dependencies
-   poetry env activate # use the output to activate the poetry environment ( ONLY IF DEVBOX DOES NOT ACTIVATE THE ENVIRONMENT)
+   devbox shell # Start the devbox environment this will also runs poetry install to install dependencies
    ```
 > Note - The first time you run `devbox shell`, it will take a few minutes to install the necessary tools. But after that it will be much faster.
 
